@@ -1,1 +1,3 @@
 pdfplumber
+google-genai
+pydantic

@@ -2,20 +2,70 @@ from typing import List, Dict, Any
 import json
 import re
 import pdfplumber
+from google import genai
+from google.genai import types
+from pydantic import BaseModel, Field
 
-syllabus="CSCI2073.pdf"
 
-#define a function for syllabus data extraction and storing the data extracted into a dictionary.
+def main():
+
+    #variable to store pdf address
+    syllabus="CSCI2073.pdf"
+
+    #converting extracted list into string for gemini prompting
+    extracted_text=str(syllabus_ingestion(syllabus))
+
+    #printing extracted text to see if its being properly setup or no
+    with open("raw_output.txt","w") as file1:
+        file1.write(extracted_text)
+
+    #printing extracted_data_parsing to see if our data is parsed like we want it to be
+    with open("output.txt", "w") as file:
+        json.dump(extracted_data_parsing(extracted_text), file)
+
+
+def extracted_data_parsing(extracted_text):
+    # loading gemini api through environment variable
+    client=genai.Client()
+
+    #defining blueprint for an individual event from syllabus
+    class event(BaseModel):
+
+        title: str= Field(description="Name of the event")
+        event_date: str= Field(description="ISO-8601 format date")
+
+    #defining wrapper for all events from syllabus for structured data receiving
+    class SyllabusSchedule(BaseModel):
+        events:list[event]
+
+    #text processing function
+    def parse_syllabus(extracted_text):
+        response=client.models.generate_content(
+            model="gemini-3.5-flash-lite",
+            contents="extract all dates paired with event names for this data:"+extracted_text,
+            config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=SyllabusSchedule,
+            temperature=0.1),
+        )
+        return response.text
+    return parse_syllabus(extracted_text)
+
+
+#defining a function for syllabus data extraction and storing the data extracted into a dictionary.
 def syllabus_ingestion(syllabus: str) -> List[Dict[str,Any]]:
 
     #list that stores extracted records
     extracted_records=[]
 
     #regex pattern to filter potential schedule texts
-    schedule_pattern = re.compile(
-        r'\b(?:\d{1,2}[/-]\d{1,2}|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|due|exam|homework|assignment|quiz|project)\b',
-        re.IGNORECASE
-    )
+    schedule_pattern =re.compile(
+            r"\b(?:\d{1,2}[/-]\d{1,2}|"
+            r"Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|"
+            r"due|exam|homework)",
+            re.IGNORECASE,
+        )
+
 
     #opening the syllabus pdf with pdf plumber to read from it
     with pdfplumber.open(syllabus) as pdf:
@@ -76,5 +126,4 @@ def syllabus_ingestion(syllabus: str) -> List[Dict[str,Any]]:
                                             "content": cleaned_line
                                         })
     return extracted_records
-with open("output.json", "w") as file:
-    json.dump(syllabus_ingestion(syllabus), file)
+main()
