@@ -3,5 +3,12 @@
 __pycache__/
 .idea/
 *.pyc
+#hiding test pdfs
 *.pdf
 *CSCI2073.pdf
+*core/.txt
+*.txt
+# Google OAuth secrets and session tokens
+client_secret_*.json
+core/credentials.json
+token.json
