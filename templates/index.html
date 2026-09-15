@@ -2,9 +2,76 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Syllabus to Calendar</title>
+    <style>
+        body  { font-family: sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+        th, td { border: 1px solid #ccc; padding: .4rem .6rem; text-align: left; }
+        button { padding: .5rem 1rem; }
+        .msg  { background: #e6ffed; padding: .75rem; border-radius: 4px; }
+    </style>
 </head>
 <body>
+<h1>Syllabus to Calendar</h1>
 
+<!-- conditional jinja2 block to check if a success message variable exists. -->
+{%if message%}
+
+    <!-- Display success message inside styled paragraph block -->
+    <p class="msg">{{message}}</p>
+    <p> <a href="/">Upload another syllabus</a></p>
+
+
+<!-- checking if extracted events data exists for review-->
+{%elif events%}
+
+    <!-- showing total events count-->
+    <h2>Found{{events|length}}</h2>
+
+    <!-- Showing events with dates in a table-->
+    <table>
+
+        <tr><th>Date</th><th>Event</th></tr>
+        <!-- iterating through each event object in the events list-->
+        {% for e in events%}
+        <tr><td>{{e.event_date}}</td><td>{{e.title}}</td></tr>
+        {% endfor %}
+
+    </table>
+
+<!-- form container to submit reviewed events to the google calendar-->
+<form method="POST" action="/add">
+    <button type="submit">Add to Google Calendar</button>
+</form>
+
+<!-- fallback reset link to restart the process-->
+<p><a href="/">Start over</a></p>
+
+<!--Default fallback conditional state-->
+{%else%}
+
+<!-- form container for uploading and specifying the syllabus file and term year respectively-->
+<form method="post" enctype="multipart/form-data">
+
+    <!--file input field for selecting the syllabus PDF.-->
+    <p>
+        <label>Syllabus PDF<br>
+        <input type="file" name="syllabus" accept="application/pdf" required>
+        </label>
+    </p>
+
+    <!-- Number input field for term year-->
+    <p>
+        <label>Year of the term<br>
+            <input type="number" name="class_year" value="2026" min="2000" max="2100" required>
+        </label>
+    </p>
+
+    <!-- submission button that triggers extraction workflow. -->
+    <button type="submit">Extract events</button>
+
+</form>
+{% endif %}
 </body>
 </html>

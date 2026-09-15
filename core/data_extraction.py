@@ -53,7 +53,7 @@ def syllabus_ingestion(syllabus: str) -> List[Dict[str,Any]]:
                                     "content": cleaned_row
                                 })
 
-                        else:
+            else:
 
                             #read text if there are no tables in the current page
                             text=page.extract_text()

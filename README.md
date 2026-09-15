@@ -3,38 +3,42 @@
 Turn a course syllabus PDF into Google Calendar events.
 
 Give it a syllabus → it pulls out every dated item (exams, homework deadlines,
-lectures) using `pdfplumber` + Gemini → the events are added to your Google
-Calendar as all-day events.
+lectures) using `pdfplumber` + Gemini → you review the list in your browser →
+the events are added to your Google Calendar as all-day events.
 
 ## How it works
 
 1. **Extraction** — `core/data_extraction.py`
    Opens the PDF with `pdfplumber`, reads tables (falling back to raw text
-   lines), and keeps only rows that look like schedule entries (dates, month
-   names, "due", "exam", "homework").
+   lines on pages without tables), and keeps only rows that look like schedule
+   entries (dates, month names, "due", "exam", "homework").
 2. **Parsing** — `core/data_parsing.py`
-   Sends the filtered text to Gemini with a Pydantic response schema and gets
-   back structured JSON:
+   Sends the filtered text plus the term year to Gemini with a Pydantic
+   response schema and gets back structured JSON:
    ```json
    {"events": [{"title": "Midterm 1", "event_date": "2026-10-07"}, ...]}
    ```
+   The year is supplied by you because syllabi usually write dates like
+   `17-Aug` with no year, and Gemini would otherwise guess one.
 3. **Calendar upload** — `core/calendar_integration.py`
    Runs the Google OAuth flow in your browser, then inserts each event into
    your primary calendar via the Google Calendar API.
+
+`app.py` wraps all three in a small Flask site: upload → review → add.
 
 ## Project structure
 
 ```
 SyllabusToCalendar/
+├── app.py                         # Flask web app (upload / review / add)
+├── templates/
+│   └── index.html                 # the single page the web app renders
 ├── core/
 │   ├── main.py                    # CLI / debug entry point
 │   ├── data_extraction.py         # PDF → candidate schedule lines
 │   ├── data_parsing.py            # lines → structured events (Gemini)
 │   ├── calendar_integration.py    # events → Google Calendar (OAuth)
 │   └── credentials.example.json   # template for your OAuth client file
-├── app.py                         # web backend        (in progress)
-├── templates/
-│   └── index.html                 # upload page        (in progress)
 ├── requirements.txt
 └── README.md
 ```
@@ -56,7 +60,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-### Gemini API key
+### 1. Gemini API key
 
 ```bash
 # Windows (PowerShell)
@@ -66,33 +70,66 @@ $env:GEMINI_API_KEY = "your-key-here"
 export GEMINI_API_KEY="your-key-here"
 ```
 
-### Google Calendar OAuth
+### 2. Flask secret key
 
-1. Go to https://console.cloud.google.com and create (or pick) a project.
-2. **3bars on rop left→APIs & Services** → Library** → enable **Google Calendar API**.
-3. APIS & Services→**OAuth consent screen** → Audience → add your Gmail as a test user.
-4. APIS & Services→**Credentials → Create Credentials → OAuth client ID → Desktop app** →
-   download the JSON.
-5. Save it as `core/credentials.json` (use `core/credentials.example.json`
-   as a reference for the expected shape).
-
-`core/credentials.json`, `token.json`, and `client_secret_*.json` are
-git-ignored — never commit them.
-
-## Usage (CLI)
-
-Drop your syllabus PDF into `core/`, set the filename in `core/main.py`
-(`syllabus = "CSCI2073.pdf"`), then run from inside `core/`:
+The web app stores the extracted events in a signed session cookie, which
+needs a secret key. Generate one:
 
 ```bash
-cd core
-python main.py
+python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-A browser window opens for Google sign-in and consent; once you approve,
-the events are inserted and each one is printed as it's added.
+Create a file named `.env` in the project root containing:
 
-Debug outputs written to `core/`:
+```
+FLASK_SECRET_KEY=paste_the_generated_key_here
+```
+
+### 3. Google Calendar OAuth
+
+1. Go to https://console.cloud.google.com and create (or pick) a project.
+2. ☰ menu (top left) → **APIs & Services → Library** → enable
+   **Google Calendar API**.
+3. **APIs & Services → OAuth consent screen → Audience** → add your Gmail as
+   a test user.
+4. **APIs & Services → Credentials → Create Credentials → OAuth client ID →
+   Desktop app** → download the JSON.
+5. Save it as `core/credentials.json` (see `core/credentials.example.json`
+   for the expected shape).
+
+`.env`, `core/credentials.json`, `token.json`, and `client_secret_*.json`
+are git-ignored — never commit them.
+
+## Usage
+
+### Web app
+
+From the project root:
+
+```bash
+python app.py
+```
+
+Open http://127.0.0.1:5000, choose your syllabus PDF, enter the year of the
+term, and click **Extract events**. Review the table, then click
+**Add to Google Calendar**. A Google sign-in window opens; once you approve,
+the events are inserted.
+
+> The sign-in window opens on the machine running `app.py`, so for now the
+> web app is meant to be used from the same computer. Phone support needs
+> the web-based OAuth flow (see Status).
+
+### CLI (for debugging)
+
+Drop your syllabus PDF into `core/`, set the filename and `class_year` in
+`core/main.py`, then run from the project root:
+
+```bash
+python -m core.main
+```
+
+It prints each event as it's added and writes two debug files to the
+directory you ran it from:
 
 - `raw_output.txt` — the filtered rows/lines pulled from the PDF
 - `output.txt` — the structured events JSON returned by Gemini
@@ -104,13 +141,17 @@ Sample PDFs and `.txt` outputs are git-ignored.
 - [x] PDF table/text extraction with schedule filtering
 - [x] Gemini structured extraction of event titles + dates
 - [x] Google Calendar upload with OAuth
-- [ ] Web app (`app.py` + `templates/index.html`) so it can be used from a
-      phone or any browser — **in progress**
-- [ ] Review/edit events before uploading
+- [x] Flask web app: upload → review → add
+- [ ] Edit events in the browser before uploading
+- [ ] Web-based OAuth flow so it works from a phone
 - [ ] Duplicate detection on re-runs
+- [ ] Token caching so you don't sign in every time
 
 ## Notes
 
-- Events are created as **all-day** events. If Gemini returns a non-ISO date
-  (e.g. `"TBD"`), `date.fromisoformat` will raise and stop the run.
-- The OAuth flow runs every time; there's no token caching yet.
+- Events are created as **all-day** events; times in the syllabus are
+  ignored.
+- If Gemini returns a non-ISO date (e.g. `"TBD"`), `date.fromisoformat`
+  raises and stops the run.
+- Test with a small syllabus first — every run inserts all events again, and
+  there's no duplicate detection yet.

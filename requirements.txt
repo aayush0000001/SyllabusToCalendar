@@ -3,3 +3,5 @@ google-genai
 pydantic
 google-auth-oauthlib
 google-api-python-client
+python-dotenv
+flask

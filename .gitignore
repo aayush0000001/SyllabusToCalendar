@@ -10,5 +10,6 @@ __pycache__/
 *.txt
 # Google OAuth secrets and session tokens
 client_secret_*.json
+.env
 core/credentials.json
 token.json
