@@ -1,9 +1,9 @@
-
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from datetime import date ,timedelta
+from pathlib import Path
 
-CREDENTIALS_FILE = "credentials.json"
+CREDENTIALS_FILE = Path(__file__).resolve().parent /"credentials.json"
 SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
 
 #runs Oauth flow

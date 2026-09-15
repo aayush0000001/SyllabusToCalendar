@@ -2,7 +2,7 @@ from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
 
-def extracted_data_parsing(extracted_text):
+def extracted_data_parsing(extracted_text,class_year):
     # loading gemini api through environment variable
     client=genai.Client()
 
@@ -17,14 +17,14 @@ def extracted_data_parsing(extracted_text):
         events:list[event]
 
     #text processing function
-    def parse_syllabus(extracted_text):
+    def parse_syllabus(extracted_text,class_year):
         response=client.models.generate_content(
             model="gemini-3.5-flash-lite",
-            contents="extract all dates paired with event names for this data:"+extracted_text,
+            contents = f"extract all dates(with year {class_year}) paired with event names for this data: {extracted_text}",
             config=types.GenerateContentConfig(
             response_mime_type="application/json",
             response_schema=SyllabusSchedule,
             temperature=0.1),
         )
         return response.text
-    return parse_syllabus(extracted_text)
+    return parse_syllabus(extracted_text,class_year)
